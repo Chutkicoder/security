@@ -1,0 +1,75 @@
+###Verify connectivity among devices before firewall configuration,
+use ACLs to ensure remote access to router is available only from management PCC,
+configure ACLs on R1 and R3 to mitigate attacks, verify ACL functionality
+
+R
+enable secret enpa55
+line console 0
+password conpa55
+login
+exit
+ip domain-name ccnasecurity.com
+username admin secret adminpa55
+line vty 0 4
+login local
+crypto key generate rsa
+R2
+in loopback 0
+ip address 192.168.2.1 255.255.255.0
+no shut
+R1
+ip route 192.168.3.0 255.255.255.0 10.1.1.2
+ip route 10.2.2.0 255.255.255.0 10.1.1.2
+ip route 192.168.2.0 255.255.255.0 10.1.1.2
+R2
+ip route 192.168.1.0 255.255.255.0 10.1.1.1
+ip route 192.168.3.0 255.255.255.0 10.2.2.1
+R3
+ip route 192.168.1.0 255.255.255.0 10.2.2.2
+ip route 192.168.2.0 255.255.255.0 10.2.2.2
+ip route 10.1.1.0 255.255.255.0 10.2.2.2
+PCA ping 192.168.3.3/192.168.2.1
+PCA/C ssh -l admin 192.168.2.1
+PCC ping 192.168.1.3/192.168.2.1
+Desktop-web browser-192.168.1.3
+
+R
+access-list 10 permit host 192.168.3.3
+line vty 0 4
+access-class 10 in
+PCC/A ssh -l admin 192.168.2.1    (A-unsuccessful)
+
+click PCA-service-HTTP-disable and https enable
+R1
+access-list 120 permit udp any host 192.168.1.3 eq domain
+access-list 120 permit tcp any host 192.168.1.3 eq smtp
+access-list 120 permit tcp any host 192.168.1.3 eq ftp
+access-list 120 deny tcp any host 192.168.1.3 eq 443
+access-list 120 permit tcp any host 192.168.3.3 host 10.1.1.1 eq 22
+int se0/1/0
+ip access-group 120 in
+PCC Desktop-web browser-192.168.1.3  (unsuccessful)
+
+PCA ping 192.168.2.1  (unsuccessful)
+R1
+access-list 120 permit icmp any any echo-reply
+access-list 120 permit icmp any any unreachable
+access-list 120 deny icmp any any 
+access-list 120 permit ip any any 
+PCA ping 192.168.2.1
+
+R3
+access-list 110 permit ip 192.168.3.0 0.0.0.255
+int gig0/0
+ip access-group 110 in
+access-list 100 permit tcp 10.0.0.0 0.255.255.255 host 192.168.3.3 eq 22
+access-list 100 deny ip 10.0.0.0 0.255.255.255 any
+access-list 100 deny ip 172.16.0.0 0.15.255.255 any
+access-list 100 deny ip 192.168.0.0 0.0.255.255 any
+access-list 100 deny ip 127.0.0.0 0.255.255.255 any
+access-list 100 deny ip 224.0.0.0 15.255.255.255 any
+access-list 100 permit ip any any
+int se0/1/0
+access-group 100 in
+PCC ping 192.168.1.3   (unsuccessful) 
+PCC ssh -l admin 192.168.2.1
